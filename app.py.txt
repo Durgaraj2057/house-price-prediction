@@ -1,0 +1,56 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import pickle
+import os
+
+# Set page configuration
+st.set_page_config(page_title="House Price Predictor", page_icon="🏡", layout="centered")
+
+st.title("🏡 Residential House Price Predictor")
+st.markdown("Enter the property details below to estimate the market value. Powered by an optimized XGBoost pipeline.")
+
+# Check if model exists
+if not os.path.exists('model.pkl'):
+    st.error("⚠️ 'model.pkl' not found! Please run `python train.py` first to generate and save your model.")
+else:
+    # Load model
+    with open('model.pkl', 'rb') as f:
+        model = pickle.load(f)
+
+    # Sidebar inputs
+    st.sidebar.header("🔧 Property Attributes")
+    
+    sqft_living = st.sidebar.slider("Total Living Area (SqFt)", min_value=500, max_value=6000, value=2000, step=50)
+    bedrooms = st.sidebar.selectbox("Number of Bedrooms", options=[1, 2, 3, 4, 5, 6], index=2)
+    bathrooms = st.sidebar.selectbox("Number of Bathrooms", options=[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5], index=2)
+    yr_built = st.sidebar.slider("Year Built", min_value=1950, max_value=2026, value=2000)
+    grade = st.sidebar.radio("Construction & Design Grade", options=[3, 4, 5], format_func=lambda x: {3: "Average", 4: "Good", 5: "Luxury"}[x], index=1)
+
+    # Derived features matching training data
+    house_age = 2026 - yr_built
+    total_rooms = bedrooms + bathrooms
+
+    # Predict button
+    if st.button("💰 Predict Market Value", use_container_width=True):
+        # Create input dataframe
+        input_data = pd.DataFrame([{
+            'sqft_living': sqft_living,
+            'bedrooms': bedrooms,
+            'bathrooms': bathrooms,
+            'grade': grade,
+            'house_age': house_age,
+            'total_rooms': total_rooms
+        }])
+        
+        # Predict price
+        prediction = model.predict(input_data)
+        
+        # Display Results
+        st.success(f"### Estimated Value: **${prediction[0]:,.2f}**")
+        
+        # Dashboard Breakdown Metrics
+        col1, col2, col3 = st.columns(3)
+        col1.metric(label="Price per SqFt", value=f"${prediction[0]/sqft_living:.2f}/sf")
+        col2.metric(label="Property Age", value=f"{house_age} Years")
+        col3.metric(label="Total Configured Rooms", value=f"{total_rooms}")
